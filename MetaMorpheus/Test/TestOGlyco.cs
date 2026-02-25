@@ -22,6 +22,7 @@ using EngineLayer.DatabaseLoading;
 using TaskLayer;
 using TopDownProteomics;
 using UsefulProteomicsDatabases;
+using NUnit.Framework.Internal.Execution;
 
 namespace Test
 {
@@ -1841,6 +1842,16 @@ namespace Test
             Directory.Delete(outputFolder, true);
             Directory.Delete(outputFolder_new, true);
 
+        }
+
+        [Test]
+        public static void TestFragment() 
+        {
+            PeptideWithSetModifications peptide = new PeptideWithSetModifications(
+                "HS[Common Biological:Phosphorylation on S]PQPS[Common Biological:Phosphorylation on S]PTR");
+            var fragment = new List<Product>();
+            peptide.Fragment(DissociationType.HCD, FragmentationTerminus.Both,fragment);
+            int i = 0;
         }
 
     }
