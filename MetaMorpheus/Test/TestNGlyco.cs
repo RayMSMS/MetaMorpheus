@@ -786,12 +786,14 @@ namespace Test
         }
 
         [Test]
-        public static void MonoSaccharidesInstruction_EveryLineIsCommentOrBlank()
+        public static void EmbeddedMonosaccharideTemplate_EveryLineIsCommentBlankOrHeader()
         {
-            // GlycanDatabase.MonoSaccharidesInstruction is hand-written directly into the source file
-            // (issue #2752's fix), so nothing else guarantees every line is a comment or blank -- a
-            // stray non-'#' line breaks LoadCustomMonosaccharides the moment the file is freshly
-            // created (see EnsureCustomMonosaccharideFileExists_ThenLoadCustomMonosaccharides_DoesNotThrow).
+            // Guards the embedded Glycan_Mods/MonosaccharidesCustom.tsv template (issue #2752's fix).
+            // A .tsv under Glycan_Mods/ looks like inert data nobody needs to think about -- right up
+            // until a stray non-'#' line breaks startup: EnsureCustomMonosaccharideFileExists writes this
+            // template out on first launch, and LoadCustomMonosaccharides then tries to parse any line
+            // that isn't blank, a comment, or the header row as a data row and throws
+            // (see EnsureCustomMonosaccharideFileExists_ThenLoadCustomMonosaccharides_DoesNotThrow).
             // This test pinpoints exactly which line is wrong instead of relying on that indirect symptom.
             var assembly = typeof(GlycanDatabase).Assembly;
             using var stream = assembly.GetManifestResourceStream("EngineLayer.Glycan_Mods.MonosaccharidesCustom.tsv");
