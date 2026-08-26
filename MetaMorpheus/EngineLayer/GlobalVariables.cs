@@ -46,6 +46,12 @@ namespace EngineLayer
 
         public static List<string> ErrorsReadingMods;
 
+        // Non-fatal issues from SetUpGlobalVariables() itself (e.g. an optional custom-registry file that
+        // could not be seeded). Populated before any WarnHandler/NotificationHandler is wired up -- GUI
+        // and CLI callers must drain this explicitly once their own reporting channel is ready, right
+        // after SetUpGlobalVariables() returns.
+        public static List<string> StartupWarnings;
+
         // File locations
         public static string DataDir { get; private set; }
         public static string UserSpecifiedDataDir { get; set; }
@@ -76,6 +82,7 @@ namespace EngineLayer
 
         public static void SetUpGlobalVariables()
         {
+            StartupWarnings = new List<string>();
             AcceptedDatabaseFormats = new List<string> { ".fasta", ".fa", ".xml", ".msp", ".msl" };
             // ".d" is the Bruker acquisition folder; the rest of the Bruker entries are the inner files a user may hand
             // us instead, which BrukerDataDirectory redirects to their parent ".d". Keep this list lower-case: every

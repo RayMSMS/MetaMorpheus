@@ -267,12 +267,27 @@ namespace EngineLayer
                     // mzLib-embedded default protease/rnase templates (GlobalVariables.LoadDigestionAgents).
                     var assembly = typeof(GlycanDatabase).Assembly;
                     using var stream = assembly.GetManifestResourceStream("EngineLayer.Glycan_Mods.MonosaccharidesCustom.tsv");
+                    if (stream == null)
+                    {
+                        // GetManifestResourceStream returns null (rather than throwing) for a wrong name or a
+                        // dropped <EmbeddedResource> entry, which would otherwise reach the catch below as an
+                        // unhelpful ArgumentNullException from `new StreamReader(null)`. Naming it here means
+                        // a build misconfiguration is diagnosable instead of presenting as "the feature quietly
+                        // does not exist".
+                        throw new FileNotFoundException("Embedded resource 'EngineLayer.Glycan_Mods.MonosaccharidesCustom.tsv' was not found in the EngineLayer assembly manifest.");
+                    }
                     using var reader = new StreamReader(stream);
                     File.WriteAllText(path, reader.ReadToEnd());
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"Could not create custom monosaccharide file '{path}': {ex.Message}");
+                    // This runs inside GlobalVariables.LoadGlycans, called from SetUpGlobalVariables before any
+                    // WarnHandler/NotificationHandler is wired up (and before InitializeComponent in the GUI),
+                    // so there is no live event channel to report through yet. GlobalVariables.StartupWarnings
+                    // exists for exactly this: a plain static list, guaranteed to exist by this point, that
+                    // callers drain once their own UI/console is ready. LoadCustomMonosaccharides documents this
+                    // file as optional, so a failed seed must not throw -- see EnsureCustomMonosaccharideFileExists_UnwritableTarget_SwallowsAndDoesNotThrow.
+                    GlobalVariables.StartupWarnings.Add($"Could not create custom monosaccharide file '{path}': {ex.Message}");
                 }
             }
         }

@@ -89,6 +89,18 @@ namespace MetaMorpheusCommandLine
 
             GlobalVariables.SetUpGlobalVariables();
 
+            // print any non-fatal issues from SetUpGlobalVariables() itself (e.g. an optional custom-registry
+            // file that could not be seeded) unconditionally, unlike GlobalVariables.ErrorsReadingMods below,
+            // which is only ever populated inside the per-database .xml branch further down
+            foreach (var warning in GlobalVariables.StartupWarnings)
+            {
+                if (settings.Verbosity == CommandLineSettings.VerbosityType.minimal || settings.Verbosity == CommandLineSettings.VerbosityType.normal)
+                {
+                    Console.WriteLine(warning);
+                }
+            }
+            GlobalVariables.StartupWarnings.Clear();
+
             if (settings.Verbosity == CommandLineSettings.VerbosityType.minimal || settings.Verbosity == CommandLineSettings.VerbosityType.normal)
             {
                 Console.WriteLine(GlobalVariables.MetaMorpheusVersion);

@@ -86,6 +86,7 @@ namespace MetaMorpheusGUI
             UpdateOutputFolderTextbox();
             SearchModifications.SetUpModSearchBoxes();
             PrintErrorsReadingMods();
+            PrintStartupWarnings();
 
             if (!GuiGlobalParamsViewModel.SettingsFileExists())
             {
@@ -1633,6 +1634,17 @@ namespace MetaMorpheusGUI
                 NotificationHandler(null, new StringEventArgs(error, null));
             }
             GlobalVariables.ErrorsReadingMods.Clear();
+        }
+
+        private void PrintStartupWarnings()
+        {
+            // print any non-fatal issues from GlobalVariables.SetUpGlobalVariables() (e.g. an optional
+            // custom-registry file that could not be seeded) to the notifications area
+            foreach (var warning in GlobalVariables.StartupWarnings)
+            {
+                NotificationHandler(null, new StringEventArgs(warning, null));
+            }
+            GlobalVariables.StartupWarnings.Clear();
         }
 
         private void UpdateOutputFolderTextbox()
