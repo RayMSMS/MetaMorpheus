@@ -16,6 +16,7 @@ using MzLibUtil;
 using Nett;
 using NUnit.Framework.Legacy;
 using Omics.Modifications;
+using Readers;
 
 namespace Test
 {
@@ -655,7 +656,7 @@ namespace Test
         }
 
         [Test]
-        public static void PersistCustomMonosaccharide_MultiCharCode_Throws() 
+        public static void PersistCustomMonosaccharide_MultiCharCode_Throws()
         {
             var ex = Assert.Throws<MetaMorpheusException>(
                 () => GlycanDatabase.PersistCustomMonosaccharide("Foo", "AB", "", "100.0", "", "Multi-char code"));
@@ -707,7 +708,7 @@ namespace Test
         }
 
         [Test]
-        public static void PersistCustomMonosaccharide_AppendsOnOwnLineWhenFileMissingTrailingNewline() 
+        public static void PersistCustomMonosaccharide_AppendsOnOwnLineWhenFileMissingTrailingNewline()
         {
             string path = GlobalVariables.CustomMonosaccharidePath;
             bool existedBefore = File.Exists(path);
@@ -828,7 +829,7 @@ namespace Test
         }
 
         [Test]
-        public static void EnsureCustomMonosaccharideFileExists_CreatesHeaderedFileWhenMissing() 
+        public static void EnsureCustomMonosaccharideFileExists_CreatesHeaderedFileWhenMissing()
         {
             string tempDir = Directory.CreateTempSubdirectory().FullName;
             string path = Path.Combine(tempDir, "MonosaccharidesCustom.tsv");
@@ -986,6 +987,15 @@ namespace Test
             {
                 Directory.Delete(tempDir, true);
             }
+        }
+
+        [Test]
+        public static void PP() 
+        {
+            string path_NO = "H:\\PK_PhosGlycopeptide\\Run_1006_CoverP_FilterOff_DiaOn\\Task1-GlycoSearchTask\\nglyco.psmtsv";
+            string path_YES = "H:\\PK_PhosGlycopeptide\\Run_1006_CoverP_FilterON_DiaOn\\Task1-GlycoSearchTask\\nglyco.psmtsv";
+            //var gms_NO = PsmFromTsv(path_NO);
+
         }
 
     }
