@@ -993,33 +993,12 @@ namespace Test
         [Test]
         public static void PP() 
         {
-            string path_NO = "H:\\PK_PhosGlycopeptide\\Run_1006_CoverP_FilterOff_DiaOn\\Task1-GlycoSearchTask\\nglyco.psmtsv";
             string path_YES = "H:\\PK_PhosGlycopeptide\\Run_1006_CoverP_FilterON_DiaOn\\Task1-GlycoSearchTask\\nglyco.psmtsv";
-            var gms_NO = SpectrumMatchTsvReader.ReadPsmTsv(path_NO, out var error1).OfType<GlycoPsmFromTsv>().ToList();
             var gms_YES = SpectrumMatchTsvReader.ReadPsmTsv(path_YES, out var error2).OfType<GlycoPsmFromTsv>().ToList();
-            List<int> missed = new List<int>();
-            List<int> found = new List<int>();
+            List<int> phosphatedScan = gms_YES.Where(g => g.GlycanComposition.Contains('M')).Select(g => g.Ms2ScanNumber).ToList();
             int count = 0;
 
-
-            foreach (var gsm_YES in gms_YES)
-            {
-                if (gsm_YES.GlycanComposition.Contains('M'))
-                {
-                    int scan = gsm_YES.Ms2ScanNumber;
-                    var matchedIons_YES = gsm_YES.MatchedIons.ToList();
-                    var gsm_NO = gms_NO.FirstOrDefault(g => g.Ms2ScanNumber == scan);
-                    if (gsm_NO == null)
-                    {
-                        missed.Add(scan);
-                    }
-                    else
-                    {
-                        found.Add(scan);
-                    }
-                    count++;
-                }
-            }
+            string rawFile = "H:\\PK_PhosGlycopeptide\\20250325_HILIC_HeLa-1.raw";
 
             int iiii = 0;
         }
