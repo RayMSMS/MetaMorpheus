@@ -993,13 +993,13 @@ namespace Test
         [Test]
         public static void PP() 
         {
-            string path_YES = "H:\\PK_PhosGlycopeptide\\Run_1006_CoverP_FilterON_DiaOn\\Task1-GlycoSearchTask\\nglyco.psmtsv";
+            string path_YES = "H:\\PK_PhosGlycopeptide\\Run_FilterON_234\\Task1-GlycoSearchTask\\nglyco.psmtsv";
             var gms_YES = SpectrumMatchTsvReader.ReadPsmTsv(path_YES, out var error2).OfType<GlycoPsmFromTsv>().ToList();
             List<int> phosphatedScan = gms_YES.Where(g => g.GlycanComposition.Contains('M')).Select(g => g.Ms2ScanNumber).ToList();
             int count = 0;
 
             string ScanFile = "H:\\PK_PhosGlycopeptide\\20250325_HILIC_HeLa-1.raw";
-            var task = Toml.ReadFile<GlycoSearchTask>("H:\\PK_PhosGlycopeptide\\Run_1006_CoverP_FilterON_DiaOn\\Task Settings\\Task1-GlycoSearchTaskconfig.toml", MetaMorpheusTask.tomlConfig);
+            var task = Toml.ReadFile<GlycoSearchTask>("H:\\PK_PhosGlycopeptide\\Run_FilterON_234\\Task Settings\\Task1-GlycoSearchTaskconfig.toml", MetaMorpheusTask.tomlConfig);
             CommonParameters commonParameters = task.CommonParameters;
             GlycoSearchParameters glycoSearchParameters = task._glycoSearchParameters;
             MyFileManager myFileManager = new MyFileManager(glycoSearchParameters.DisposeOfFileWhenDone);
@@ -1007,6 +1007,7 @@ namespace Test
             var deconvolutedMs2Scans = MetaMorpheusTask.GetMs2Scans(myDataFile, ScanFile, commonParameters).OrderBy(p => p.OneBasedScanNumber);
             double p_Hex = ((double)24302700/1E5).ToMass(1);
             double Hex = ((double)13805550/1E5).ToMass(1);
+            double hex_p_hex = ((double)40508000 / 1E5).ToMass(1);
             var massDiffAcceptor = new SinglePpmAroundZeroSearchMode(20);
             int below = 0;
             List<double> ration_below = new List<double>();
@@ -1018,20 +1019,21 @@ namespace Test
 
                 double I_PHex = 0;
                 double I_Hex = 0;
+                double I_hex_p_hex = 0;
 
-                var envelope = scan.GetClosestExperimentalIsotopicEnvelope(p_Hex);
-                if (massDiffAcceptor.Accepts(envelope.MonoisotopicMass, p_Hex) >= 0)
+                var envelope = scan.GetClosestExperimentalIsotopicEnvelope(hex_p_hex);
+                if (massDiffAcceptor.Accepts(envelope.MonoisotopicMass, hex_p_hex) >= 0)
                 {
-                    I_PHex = envelope.TotalIntensity;
+                    I_hex_p_hex = envelope.TotalIntensity;
                 }
                 var envelopeHex = scan.GetClosestExperimentalIsotopicEnvelope(Hex);
                 if (massDiffAcceptor.Accepts(envelopeHex.MonoisotopicMass, Hex) >= 0)
                 {
                     I_Hex = envelopeHex.TotalIntensity;
                 }
-                if (I_PHex > 0 && I_Hex > 0) 
+                if (I_hex_p_hex > 0 && I_Hex > 0) 
                 {
-                    double ratio = I_PHex / I_Hex;
+                    double ratio = I_hex_p_hex / I_Hex;
                     if (ratio < 0.2)
                     {
                         below++;
