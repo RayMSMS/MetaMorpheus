@@ -17,6 +17,7 @@ using Nett;
 using NUnit.Framework.Legacy;
 using Omics.Modifications;
 using Readers;
+using CommandLine;
 
 namespace Test
 {
@@ -994,8 +995,64 @@ namespace Test
         {
             string path_NO = "H:\\PK_PhosGlycopeptide\\Run_1006_CoverP_FilterOff_DiaOn\\Task1-GlycoSearchTask\\nglyco.psmtsv";
             string path_YES = "H:\\PK_PhosGlycopeptide\\Run_1006_CoverP_FilterON_DiaOn\\Task1-GlycoSearchTask\\nglyco.psmtsv";
-            //var gms_NO = PsmFromTsv(path_NO);
+            var gms_NO = SpectrumMatchTsvReader.ReadPsmTsv(path_NO, out var error1).OfType<GlycoPsmFromTsv>().ToList();
+            var gms_YES = SpectrumMatchTsvReader.ReadPsmTsv(path_YES, out var error2).OfType<GlycoPsmFromTsv>().ToList();
+            List<int> missed = new List<int>();
+            List<int> missedWith243 = new List<int>();
+            List<int> missedWithout243 = new List<int>();
+            List<int> found = new List<int>();
+            List<int> foundWith243 = new List<int>();
+            List<int> foundWithout243 = new List<int>();
 
+            List<int> YesIDWith243 = new List<int>();
+            List<int> YesIDWithout243 = new List<int>();
+
+            foreach (var gsm in gms_NO) 
+            {
+                if (gsm.GlycanComposition.Contains('M')) 
+                {
+                    int scan = gsm.Ms2ScanNumber;
+                    var matchedIons_NO = gsm.MatchedIons.ToList();
+                    var gsm_YES = gms_YES.FirstOrDefault(g => g.Ms2ScanNumber == scan);
+                    if (gsm_YES == null) 
+                    {
+                        missed.Add(scan);
+                        if (matchedIons_NO.Any(p => p.Annotation.Contains("D243")))
+                        {
+                            missedWith243.Add(scan);
+                        }
+                        else 
+                        {
+                            missedWithout243.Add(scan);
+                        }
+
+                    }
+                    else
+                    {
+                        var matchedIons_YES = gsm_YES?.MatchedIons.ToList();
+                        found.Add(scan);
+                        if (matchedIons_YES.Any(p => p.Annotation.Contains("D243")))
+                        {
+                            YesIDWith243.Add(scan);
+                        }
+                        else 
+                        {
+                            YesIDWithout243.Add(scan);
+                        }
+
+                        if (matchedIons_NO.Any(p => p.Annotation.Contains("D243")))
+                        {
+                            foundWith243.Add(scan);
+                        }
+                        else
+                        {
+                            foundWithout243.Add(scan);
+                        }
+                    }
+                }
+            }
+
+            int iiii = 0;
         }
 
     }
