@@ -998,57 +998,26 @@ namespace Test
             var gms_NO = SpectrumMatchTsvReader.ReadPsmTsv(path_NO, out var error1).OfType<GlycoPsmFromTsv>().ToList();
             var gms_YES = SpectrumMatchTsvReader.ReadPsmTsv(path_YES, out var error2).OfType<GlycoPsmFromTsv>().ToList();
             List<int> missed = new List<int>();
-            List<int> missedWith243 = new List<int>();
-            List<int> missedWithout243 = new List<int>();
             List<int> found = new List<int>();
-            List<int> foundWith243 = new List<int>();
-            List<int> foundWithout243 = new List<int>();
+            int count = 0;
 
-            List<int> YesIDWith243 = new List<int>();
-            List<int> YesIDWithout243 = new List<int>();
 
-            foreach (var gsm in gms_NO) 
+            foreach (var gsm_YES in gms_YES)
             {
-                if (gsm.GlycanComposition.Contains('M')) 
+                if (gsm_YES.GlycanComposition.Contains('M'))
                 {
-                    int scan = gsm.Ms2ScanNumber;
-                    var matchedIons_NO = gsm.MatchedIons.ToList();
-                    var gsm_YES = gms_YES.FirstOrDefault(g => g.Ms2ScanNumber == scan);
-                    if (gsm_YES == null) 
+                    int scan = gsm_YES.Ms2ScanNumber;
+                    var matchedIons_YES = gsm_YES.MatchedIons.ToList();
+                    var gsm_NO = gms_NO.FirstOrDefault(g => g.Ms2ScanNumber == scan);
+                    if (gsm_NO == null)
                     {
                         missed.Add(scan);
-                        if (matchedIons_NO.Any(p => p.Annotation.Contains("D243")))
-                        {
-                            missedWith243.Add(scan);
-                        }
-                        else 
-                        {
-                            missedWithout243.Add(scan);
-                        }
-
                     }
                     else
                     {
-                        var matchedIons_YES = gsm_YES?.MatchedIons.ToList();
                         found.Add(scan);
-                        if (matchedIons_YES.Any(p => p.Annotation.Contains("D243")))
-                        {
-                            YesIDWith243.Add(scan);
-                        }
-                        else 
-                        {
-                            YesIDWithout243.Add(scan);
-                        }
-
-                        if (matchedIons_NO.Any(p => p.Annotation.Contains("D243")))
-                        {
-                            foundWith243.Add(scan);
-                        }
-                        else
-                        {
-                            foundWithout243.Add(scan);
-                        }
                     }
+                    count++;
                 }
             }
 
