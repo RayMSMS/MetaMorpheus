@@ -993,13 +993,13 @@ namespace Test
         [Test]
         public static void PP() 
         {
-            string path_YES = "H:\\PK_PhosGlycopeptide\\Run_FilterON_234\\Task1-GlycoSearchTask\\nglyco.psmtsv";
+            string path_YES = "H:\\PK_PhosGlycopeptide\\Run_FilterON_234+405\\Task1-GlycoSearchTask\\nglyco.psmtsv";
             var gms_YES = SpectrumMatchTsvReader.ReadPsmTsv(path_YES, out var error2).OfType<GlycoPsmFromTsv>().ToList();
             List<int> phosphatedScan = gms_YES.Where(g => g.GlycanComposition.Contains('M')).Select(g => g.Ms2ScanNumber).ToList();
             int count = 0;
 
             string ScanFile = "H:\\PK_PhosGlycopeptide\\20250325_HILIC_HeLa-1.raw";
-            var task = Toml.ReadFile<GlycoSearchTask>("H:\\PK_PhosGlycopeptide\\Run_FilterON_234\\Task Settings\\Task1-GlycoSearchTaskconfig.toml", MetaMorpheusTask.tomlConfig);
+            var task = Toml.ReadFile<GlycoSearchTask>("H:\\PK_PhosGlycopeptide\\Run_FilterON_234+405\\Task Settings\\Task1-GlycoSearchTaskconfig.toml", MetaMorpheusTask.tomlConfig);
             CommonParameters commonParameters = task.CommonParameters;
             GlycoSearchParameters glycoSearchParameters = task._glycoSearchParameters;
             MyFileManager myFileManager = new MyFileManager(glycoSearchParameters.DisposeOfFileWhenDone);
@@ -1021,39 +1021,39 @@ namespace Test
                 double I_Hex = 0;
                 double I_hex_p_hex = 0;
 
-                var envelope = scan.GetClosestExperimentalIsotopicEnvelope(hex_p_hex);
-                if (massDiffAcceptor.Accepts(envelope.MonoisotopicMass, hex_p_hex) >= 0)
+                var envelope_hex_p_hex = scan.GetClosestExperimentalIsotopicEnvelope(hex_p_hex);
+                if (massDiffAcceptor.Accepts(envelope_hex_p_hex.MonoisotopicMass, hex_p_hex) >= 0)
                 {
-                    I_hex_p_hex = envelope.TotalIntensity;
+                    I_hex_p_hex = envelope_hex_p_hex.TotalIntensity;
                 }
-                var envelopeHex = scan.GetClosestExperimentalIsotopicEnvelope(Hex);
-                if (massDiffAcceptor.Accepts(envelopeHex.MonoisotopicMass, Hex) >= 0)
+
+                var envelope_p_Hex = scan.GetClosestExperimentalIsotopicEnvelope(p_Hex);
+                if (massDiffAcceptor.Accepts(envelope_p_Hex.MonoisotopicMass, p_Hex) >= 0)
                 {
-                    I_Hex = envelopeHex.TotalIntensity;
+                    I_PHex = envelope_p_Hex.TotalIntensity;
                 }
-                if (I_hex_p_hex > 0 && I_Hex > 0) 
+                var envelope_Hex = scan.GetClosestExperimentalIsotopicEnvelope(Hex);
+                if (massDiffAcceptor.Accepts(envelope_Hex.MonoisotopicMass, Hex) >= 0)
                 {
-                    double ratio = I_hex_p_hex / I_Hex;
-                    if (ratio < 0.2)
+                    I_Hex = envelope_Hex.TotalIntensity;
+                }
+                if (I_hex_p_hex > 0 && I_PHex > 0 && I_Hex > 0) 
+                {
+                    double ratio_243 = I_PHex  / I_Hex;
+                    double ratio_405 = I_hex_p_hex / I_Hex;
+                    if (ratio_243 < 0.2 || ratio_405 < 0.2)
                     {
                         below++;
-                        ration_below.Add(ratio);
                     }
                     else 
                     {
                         above++;
-                        ration_above.Add(ratio);
                     }
                 }
                 count++;
             }
-            int iiii = 0;
-            int count_Over1 = ration_above.Count(p => p >= 1);
-            int count_Between1toHalf = ration_above.Count(p => p < 1 && p >= 0.5);
-            int count_BetweentoPointTow = ration_above.Count(p => p < 0.5 && p >= 0.2);
-            int count_Below = ration_above.Count(p => p < 0.2);
+
             int ooo = 0;
         }
-
     }
 }
