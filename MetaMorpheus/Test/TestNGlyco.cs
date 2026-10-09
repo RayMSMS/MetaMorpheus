@@ -18,6 +18,7 @@ using NUnit.Framework.Legacy;
 using Omics.Modifications;
 using Readers;
 using CommandLine;
+using ThermoFisher.CommonCore.BackgroundSubtraction;
 
 namespace Test
 {
@@ -1010,8 +1011,8 @@ namespace Test
             double hex_p_hex = ((double)40508000 / 1E5).ToMass(1);
             var massDiffAcceptor = new SinglePpmAroundZeroSearchMode(20);
             int below = 0;
-            List<double> ration_below = new List<double>();
-            List<double> ration_above = new List<double>();
+            List<double> ration_243 = new List<double>();
+            List<double> ration_405 = new List<double>();
             int above = 0;
             foreach (var IDScan in phosphatedScan) 
             {
@@ -1041,7 +1042,9 @@ namespace Test
                 {
                     double ratio_243 = I_PHex  / I_Hex;
                     double ratio_405 = I_hex_p_hex / I_Hex;
-                    if (ratio_243 < 0.2 || ratio_405 < 0.2)
+                    ration_243.Add(ratio_243);
+                    ration_405.Add(ratio_405);
+                    if (ratio_243 < 0.02 || ratio_405 < 0.02)
                     {
                         below++;
                     }
@@ -1054,6 +1057,58 @@ namespace Test
             }
 
             int ooo = 0;
+            var high_243 = ration_243.Where(p => p >= 0.5).ToList();
+            var mid_243 = ration_243.Where(p => p < 0.5 && p >= 0.1).ToList();
+            var low_243 = ration_243.Where(p => p < 0.1 && p >= 0.02).ToList();
+            var below_243 = ration_243.Where(p => p < 0.02).ToList();
+            var high_405 = ration_405.Where(p => p >= 0.5).ToList();
+            var mid_405 = ration_405.Where(p => p < 0.5 && p >= 0.1).ToList();
+            var low_405 = ration_405.Where(p => p < 0.1 && p >= 0.02).ToList();
+            var below_405 = ration_405.Where(p => p < 0.02).ToList();
+            int end = 0;
         }
+
+        [Test]
+        public static void CompareGsms() 
+        {
+            string path_234_405 = "H:\\PK_PhosGlycopeptide\\Run_FilterON_234+405\\Task1-GlycoSearchTask\\nglyco.psmtsv";
+            var gms_234_405 = SpectrumMatchTsvReader.ReadPsmTsv(path_234_405, out var error2).OfType<GlycoPsmFromTsv>().ToList();
+            
+            string path_234 = "H:\\PK_PhosGlycopeptide\\Run_FilterON_234\\Task1-GlycoSearchTask\\nglyco.psmtsv";
+            var gms_234 = SpectrumMatchTsvReader.ReadPsmTsv(path_234, out var error3).OfType<GlycoPsmFromTsv>().ToList();
+
+            string path_Null = "H:\\PK_PhosGlycopeptide\\Run_FilterOFF\\Task1-GlycoSearchTask\\nglyco.psmtsv";
+            var gms_Null = SpectrumMatchTsvReader.ReadPsmTsv(path_Null, out var error4).OfType<GlycoPsmFromTsv>().ToList();
+
+
+            List<int> sameFull = new List<int>();
+            List<int> diffFull = new List<int>();
+            List<int> missScan = new List<int>();
+            int total = 0; 
+            foreach (var gsm_Null in gms_Null.Where(g => g.GlycanComposition.Contains('M'))) 
+            {
+                int scanNum = gsm_Null.Ms2ScanNumber;
+                var gsm_234_405 = gms_234_405.FirstOrDefault(g => g.Ms2ScanNumber == scanNum);
+                if (gsm_234_405 != null)
+                {
+                    if (gsm_Null.GlycanComposition == gsm_234_405.GlycanComposition && gsm_Null.BaseSequence == gsm_234_405.BaseSequence)
+                    {
+                        sameFull.Add(scanNum);
+                        }
+                    else if (gsm_Null.GlycanComposition != gsm_234_405.GlycanComposition && gsm_Null.BaseSequence == gsm_234_405.BaseSequence)
+                    {
+                        diffFull.Add(scanNum);
+                    }
+                }
+                else 
+                {
+                    missScan.Add(scanNum);
+                }
+                total++;
+            }
+
+            int ooo = 0;
+        }
+
     }
 }
