@@ -19,6 +19,7 @@ using Omics.Modifications;
 using Readers;
 using CommandLine;
 using ThermoFisher.CommonCore.BackgroundSubtraction;
+using Easy.Common.Extensions;
 
 namespace Test
 {
@@ -994,78 +995,92 @@ namespace Test
         [Test]
         public static void PP() 
         {
-            string path_YES = "H:\\PK_PhosGlycopeptide\\Run_FilterON_234+405\\Task1-GlycoSearchTask\\nglyco.psmtsv";
+            string path_YES = "H:\\PK_PhosGlycopeptide\\S-Sugar\\Supplier AR\\N_Search_284+466_FilterOFF_mod=2\\Task1-GlycoSearchTask\\nglyco.psmtsv";
             var gms_YES = SpectrumMatchTsvReader.ReadPsmTsv(path_YES, out var error2).OfType<GlycoPsmFromTsv>().ToList();
-            List<int> phosphatedScan = gms_YES.Where(g => g.GlycanComposition.Contains('M')).Select(g => g.Ms2ScanNumber).ToList();
+            var phosphatedScansByFile = gms_YES
+                .Where(g => g.GlycanComposition.Contains('Z'))
+                .GroupBy(p => p.FileName)
+                .ToDictionary(g => g.Key, g => g.Select(p => p.Ms2ScanNumber).ToList());
             int count = 0;
 
-            string ScanFile = "H:\\PK_PhosGlycopeptide\\20250325_HILIC_HeLa-1.raw";
-            var task = Toml.ReadFile<GlycoSearchTask>("H:\\PK_PhosGlycopeptide\\Run_FilterON_234+405\\Task Settings\\Task1-GlycoSearchTaskconfig.toml", MetaMorpheusTask.tomlConfig);
+            var task = Toml.ReadFile<GlycoSearchTask>("H:\\PK_PhosGlycopeptide\\S-Sugar\\Supplier AR\\N_Search_284+466_FilterOFF_mod=2\\Task Settings\\Task1-GlycoSearchTaskconfig.toml", MetaMorpheusTask.tomlConfig);
             CommonParameters commonParameters = task.CommonParameters;
             GlycoSearchParameters glycoSearchParameters = task._glycoSearchParameters;
             MyFileManager myFileManager = new MyFileManager(glycoSearchParameters.DisposeOfFileWhenDone);
-            MsDataFile myDataFile = myFileManager.LoadFile(ScanFile, commonParameters);
-            var deconvolutedMs2Scans = MetaMorpheusTask.GetMs2Scans(myDataFile, ScanFile, commonParameters).OrderBy(p => p.OneBasedScanNumber);
-            double p_Hex = ((double)24302700/1E5).ToMass(1);
-            double Hex = ((double)13805550/1E5).ToMass(1);
-            double hex_p_hex = ((double)40508000 / 1E5).ToMass(1);
-            var massDiffAcceptor = new SinglePpmAroundZeroSearchMode(20);
-            int below = 0;
-            List<double> ration_243 = new List<double>();
-            List<double> ration_405 = new List<double>();
-            int above = 0;
-            foreach (var IDScan in phosphatedScan) 
+
+            string ScanFolder = "H:\\PK_PhosGlycopeptide\\S-Sugar\\Supplier AR";
+            Dictionary<string, List<Ms2ScanWithSpecificMass>> myMsDataFile = new Dictionary<string, List<Ms2ScanWithSpecificMass>>();
+            foreach (var path in Directory.GetFiles(ScanFolder, "*.raw")) 
             {
-                var scan = deconvolutedMs2Scans.FirstOrDefault(p => p.OneBasedScanNumber == IDScan);
+                MsDataFile myDataFile = myFileManager.LoadFile(path, commonParameters);
+                var deconvolutedMs2Scans = MetaMorpheusTask.GetMs2Scans(myDataFile, path, commonParameters).OrderBy(p => p.OneBasedScanNumber).ToList();
+                string fileName = Path.GetFileName(path);
+                myMsDataFile[fileName] = deconvolutedMs2Scans;
+            }
+            
+            
+            double s_Hex = ((double)28404300/1E5).ToMass(1);
+            double Hex = ((double)13805550/1E5).ToMass(1);
+            double hex_s_hex = ((double)46609600 / 1E5).ToMass(1);
+            var massDiffAcceptor = new SinglePpmAroundZeroSearchMode(20);
+            Dictionary<string, List<double>> ration_284ByFile = new Dictionary<string, List<double>>();
+            Dictionary<string, List<double>> ration_466ByFile = new Dictionary<string, List<double>>();
 
-                double I_PHex = 0;
-                double I_Hex = 0;
-                double I_hex_p_hex = 0;
 
-                var envelope_hex_p_hex = scan.GetClosestExperimentalIsotopicEnvelope(hex_p_hex);
-                if (massDiffAcceptor.Accepts(envelope_hex_p_hex.MonoisotopicMass, hex_p_hex) >= 0)
+            foreach (var fileScans in phosphatedScansByFile) 
+            {
+                List<double> ration_284 = new List<double>();
+                List<double> ration_466 = new List<double>();
+                var fileName = fileScans.Key;
+                var scanNumbers = fileScans.Value;
+                var deconvolutedMs2Scans = myMsDataFile.First(p=>p.Key.Contains(fileName)).Value;
+                foreach (var IDScan in scanNumbers) 
                 {
-                    I_hex_p_hex = envelope_hex_p_hex.TotalIntensity;
-                }
+                    var scan = deconvolutedMs2Scans.FirstOrDefault(p => p.OneBasedScanNumber == IDScan);
 
-                var envelope_p_Hex = scan.GetClosestExperimentalIsotopicEnvelope(p_Hex);
-                if (massDiffAcceptor.Accepts(envelope_p_Hex.MonoisotopicMass, p_Hex) >= 0)
-                {
-                    I_PHex = envelope_p_Hex.TotalIntensity;
-                }
-                var envelope_Hex = scan.GetClosestExperimentalIsotopicEnvelope(Hex);
-                if (massDiffAcceptor.Accepts(envelope_Hex.MonoisotopicMass, Hex) >= 0)
-                {
-                    I_Hex = envelope_Hex.TotalIntensity;
-                }
-                if (I_hex_p_hex > 0 && I_PHex > 0 && I_Hex > 0) 
-                {
-                    double ratio_243 = I_PHex  / I_Hex;
-                    double ratio_405 = I_hex_p_hex / I_Hex;
-                    ration_243.Add(ratio_243);
-                    ration_405.Add(ratio_405);
-                    if (ratio_243 < 0.02 || ratio_405 < 0.02)
+                    double I_SHex = 0;
+                    double I_Hex = 0;
+                    double I_hex_s_hex = 0;
+
+                    var envelope_hex_s_hex = scan.GetClosestExperimentalIsotopicEnvelope(hex_s_hex);
+                    if (massDiffAcceptor.Accepts(envelope_hex_s_hex.MonoisotopicMass, hex_s_hex) >= 0)
                     {
-                        below++;
+                        I_hex_s_hex = envelope_hex_s_hex.TotalIntensity;
                     }
-                    else 
+
+                    var envelope_s_Hex = scan.GetClosestExperimentalIsotopicEnvelope(s_Hex);
+                    if (massDiffAcceptor.Accepts(envelope_s_Hex.MonoisotopicMass, s_Hex) >= 0)
                     {
-                        above++;
+                        I_SHex = envelope_s_Hex.TotalIntensity;
                     }
+                    var envelope_Hex = scan.GetClosestExperimentalIsotopicEnvelope(Hex);
+                    if (massDiffAcceptor.Accepts(envelope_Hex.MonoisotopicMass, Hex) >= 0)
+                    {
+                        I_Hex = envelope_Hex.TotalIntensity;
+                    }
+                    double ratio_284 = I_SHex / I_Hex;
+                    double ratio_466 = I_hex_s_hex / I_Hex;
+                    ration_284.Add(ratio_284);
+                    ration_466.Add(ratio_466);
+                    count++;
                 }
-                count++;
+                ration_284ByFile[fileName] = ration_284;
+                ration_466ByFile[fileName] = ration_466;
             }
 
-            int ooo = 0;
-            var high_243 = ration_243.Where(p => p >= 0.5).ToList();
-            var mid_243 = ration_243.Where(p => p < 0.5 && p >= 0.1).ToList();
-            var low_243 = ration_243.Where(p => p < 0.1 && p >= 0.02).ToList();
-            var below_243 = ration_243.Where(p => p < 0.02).ToList();
-            var high_405 = ration_405.Where(p => p >= 0.5).ToList();
-            var mid_405 = ration_405.Where(p => p < 0.5 && p >= 0.1).ToList();
-            var low_405 = ration_405.Where(p => p < 0.1 && p >= 0.02).ToList();
-            var below_405 = ration_405.Where(p => p < 0.02).ToList();
-            int end = 0;
+            string outputPath = "H:\\PK_PhosGlycopeptide\\S-Sugar\\Supplier AR\\intensity_profile.txt";
+            foreach (var fileName in ration_284ByFile.Select(p => p.Key).ToList())
+            {
+                List<string> string_284 = new List<string>();
+                string_284.Add(fileName + " ration_284");
+                string_284.Add(string.Join("\n", ration_284ByFile[fileName]));
+                List<string> string_466 = new List<string>();
+                string_466.Add(fileName + " ration_466");
+                string_466.Add(string.Join("\n", ration_466ByFile[fileName]));
+                File.AppendAllLines(Path.Combine(outputPath), string_284);
+                File.AppendAllLines(Path.Combine(outputPath), string_466);
+                File.AppendAllLines(outputPath, new List<string> { new string('-', 15) });
+            }
         }
 
         [Test]
