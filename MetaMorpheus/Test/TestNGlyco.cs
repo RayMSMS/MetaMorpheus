@@ -1067,19 +1067,25 @@ namespace Test
                 ration_284ByFile[fileName] = ration_284;
                 ration_466ByFile[fileName] = ration_466;
             }
-
-            string outputPath = "H:\\PK_PhosGlycopeptide\\S-Sugar\\Supplier AR\\intensity_profile.txt";
-            foreach (var fileName in ration_284ByFile.Select(p => p.Key).ToList())
+            foreach(var fileName in phosphatedScansByFile.Keys)
             {
-                List<string> string_284 = new List<string>();
-                string_284.Add(fileName + " ration_284");
-                string_284.Add(string.Join("\n", ration_284ByFile[fileName]));
-                List<string> string_466 = new List<string>();
-                string_466.Add(fileName + " ration_466");
-                string_466.Add(string.Join("\n", ration_466ByFile[fileName]));
-                File.AppendAllLines(Path.Combine(outputPath), string_284);
-                File.AppendAllLines(Path.Combine(outputPath), string_466);
-                File.AppendAllLines(outputPath, new List<string> { new string('-', 15) });
+                int count_High_284 = ration_284ByFile[fileName].Count(p => p > 0.1);
+                int count_Medium_284 = ration_284ByFile[fileName].Count(p => p > 0.01 && p <= 0.1);
+                int count_Low_284 = ration_284ByFile[fileName].Count(p => p > 0.001 && p <= 0.01);
+                int count_VeryLow_284 = ration_284ByFile[fileName].Count(p => p > 0.0001 && p <= 0.001);
+                int count_dispear_284 = ration_284ByFile[fileName].Count(p => p <= 0.0001);
+
+
+                int count_High_466 = ration_466ByFile[fileName].Count(p => p > 0.1);
+                int count_Medium_466 = ration_466ByFile[fileName].Count(p => p > 0.01 && p <= 0.1);
+                int count_Low_466 = ration_466ByFile[fileName].Count(p => p > 0.001 && p <= 0.01);
+                int count_VeryLow_466 = ration_466ByFile[fileName].Count(p => p > 0.0001 && p <= 0.001);
+                int count_dispear_466 = ration_466ByFile[fileName].Count(p => p <= 0.0001);
+
+                int iiiii = 0;
+                int count_zero_284 = ration_284ByFile[fileName].Count(p => p == 0);
+                int count_zero_466 = ration_466ByFile[fileName].Count(p => p == 0);
+                int sttyyt = 0;
             }
         }
 
