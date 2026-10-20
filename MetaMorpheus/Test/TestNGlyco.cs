@@ -1,25 +1,30 @@
 ﻿using Chemistry;
+using CommandLine;
+using Easy.Common.Extensions;
 using EngineLayer;
+using EngineLayer.DatabaseLoading;
 using EngineLayer.GlycoSearch;
 using MassSpectrometry;
+using MzLibUtil;
+using Nett;
 using NUnit.Framework;
-using Proteomics;
+using NUnit.Framework.Legacy;
 using Omics.Fragmentation;
+using Omics.Modifications;
+using Org.BouncyCastle.Asn1.Mozilla;
+using Proteomics;
 using Proteomics.ProteolyticDigestion;
+using Readers;
+using Readers.Generated;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using EngineLayer.DatabaseLoading;
+using System.Net;
+using System.Text;
+using System.Text.RegularExpressions;
 using TaskLayer;
-using MzLibUtil;
-using Nett;
-using NUnit.Framework.Legacy;
-using Omics.Modifications;
-using Readers;
-using CommandLine;
 using ThermoFisher.CommonCore.BackgroundSubtraction;
-using Easy.Common.Extensions;
 
 namespace Test
 {
@@ -1131,5 +1136,185 @@ namespace Test
             int ooo = 0;
         }
 
+
+        [Test]
+        public static void CompareByonicPsm() 
+        {
+            string MetaTsv = "H:\\PK_PhosGlycopeptide\\S-Sugar\\Supplier AR\\N_Search_284_FilterON_mod=2_throwhold=0.001\\Task1-GlycoSearchTask\\nglyco.psmtsv";
+            var Meta_IDs = SpectrumMatchTsvReader.ReadPsmTsv(MetaTsv, out var error2).OfType<GlycoPsmFromTsv>().ToList();
+            var Meta_S_Sugar = Meta_IDs.Where(p => p.GlycanComposition.Contains('Z')).ToList();
+
+            string byonicTsv = "H:\\PK_PhosGlycopeptide\\S-Sugar\\Supplier AR\\GroundTruth_AR.tsv";
+            var byonicPsms = ByonicReader(byonicTsv);
+
+            int iiiii = 0;
+
+        }
+        private static List<ByonicPsm> ByonicReader(string filePath)
+        {
+            List<ByonicPsm> psms = new List<ByonicPsm>();
+            foreach (var line in File.ReadAllLines(filePath))
+            {
+                ByonicPsm byonicPsm = new ByonicPsm();
+                var parts = line.Split('\t');
+                
+                var scanNum = parts[1].Split(';').ToList();
+                var FileNameList = parts[12].Split(';').ToList();
+                if (scanNum.Count != 1 || FileNameList.Count != 1) 
+                {
+                    continue;
+                }
+                byonicPsm.ScanNum = int.Parse(scanNum.First());
+                string fileName = FileNameList.First().Replace("_SulfoNoOxon_AR", "");
+                byonicPsm.FileName = fileName;
+
+
+
+                string baseSequence = GetBase(parts[5]);
+                Dictionary<int, string> variableModDict = GetModList(parts[11], parts[4], parts[6]);
+                Dictionary<int, string> fixedModDict = GetFixedModDict(parts[15]);
+                Dictionary<int, string> modDict = GetModDict(variableModDict,fixedModDict);
+                string fullSequence = GetFullSequence(baseSequence, modDict);
+                byonicPsm.FullSequence = fullSequence;
+                byonicPsm.Score = double.Parse(parts[13]);
+                byonicPsm.ModDict = modDict;
+                psms.Add(byonicPsm);
+            }
+            return psms;
+        }
+
+        private static string GetBase(string fullText)
+        {
+            // Step 1: extract the peptide part between dots if present (prefix.peptide.suffix)
+            var parts = fullText.Split('.');
+            string peptidePart;
+
+            if (parts.Length >= 3)
+            {
+                // Join all middle parts in case the peptide contains dots itself
+                peptidePart = string.Join(".", parts.Skip(1).Take(parts.Length - 2));
+            }
+            else if (parts.Length == 2)
+            {
+                // If only two parts, take the second as the peptide
+                peptidePart = parts[1];
+            }
+            else
+            {
+                // No dots, use the whole input
+                peptidePart = parts[0];
+            }
+            peptidePart = peptidePart.Replace("n", "N");
+            return peptidePart;
+        }
+        private static Dictionary<int, string> GetModList(string modText, string siteText,string glycanComposition)
+        {
+            Dictionary<int, string> variableModDict = new Dictionary<int, string>();
+
+            var modList = modText.Split(';').ToList();
+            var siteList = siteText.Split(',').ToList().Select(p => int.Parse(p.Replace("\"",""))).ToList();
+            var kind = GlycanDatabase.String2Kind(glycanComposition);
+            string glycanLetter = Glycan.GetKindString(kind);
+
+            for (int i = 0; i < modList.Count; i++)
+            {
+                string modName = modList[i].Split("/").First();
+
+                switch (modName) 
+                {
+                    case "NGlycan":
+                        modName = "N-linked glycosylation:" + glycanLetter + " on Nx";
+                        break;
+                    case "Oxidation":
+                        modName = "Common Variable:Oxidation on ";
+                        break;
+                    case "Dioxidation":
+                        modName = "Less Common:Dioxidation on ";
+                        break;
+                    case "Deamidation":
+                        modName = "Common Artifact:Deamidation on ";
+                        break;
+                }
+                variableModDict[siteList[i]] = modName;
+            }
+            return variableModDict;
+        }
+
+        private static Dictionary<int, string> GetFixedModDict(string text)
+        {
+            var fixedModDict = new Dictionary<int, string>();
+            if (string.IsNullOrWhiteSpace(text)) return fixedModDict;
+            // Split by semicolon, trim whitespace and surrounding quotes, skip empty entries
+            var mods = text.Split(';').ToList();
+            foreach (var mod in mods)
+            {
+                var parts = mod.Split('(').First();
+                int site = int.Parse(parts.Replace("C", ""));
+                fixedModDict[site] = "Common Fixed:Carbamidomethyl on ";
+            }
+            return fixedModDict;
+        }
+
+        private static Dictionary<int, string> GetModDict(Dictionary<int, string> variableModDict, Dictionary<int, string> fixedModDict)
+        {
+            var modDict = new Dictionary<int, string>();
+            foreach (var kvp in variableModDict)
+            {
+                modDict[kvp.Key] = kvp.Value;
+            }
+            foreach (var kvp in fixedModDict)
+            {
+                modDict[kvp.Key] = kvp.Value;
+            }
+            return modDict.OrderBy(kvp => kvp.Key).ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
+        }
+
+        private static string GetFullSequence(string baseSequence, Dictionary<int, string> modDict)
+        {
+            if (string.IsNullOrEmpty(baseSequence)) return string.Empty;
+            var fullSequence = new StringBuilder();
+            for (int i = 0; i < baseSequence.Length; i++)
+            {
+                fullSequence.Append(baseSequence[i]);
+                int site = i + 1; // 1-based indexing
+                if (modDict.ContainsKey(site))
+                {
+                    string modName = modDict[site];
+                    // Only wrap in brackets if the stored value doesn't already include them,
+                    // so callers can pass either "Mod1" or "[Mod1]" without double-bracketing.
+                    string residue = baseSequence[i].ToString();
+                    if (modName.Contains("N-linked")) 
+                    {
+                        residue = baseSequence[i+2].ToString().ToLower();
+                    }
+
+                    if (!modName.StartsWith("[") || !modName.EndsWith("]"))
+                    {
+                        modName = "[" + modName + residue + "]";
+                    }
+                    fullSequence.Append(modName);
+                }
+            }
+            return fullSequence.ToString();
+        }
+
+        public class ByonicPsm
+        {
+            public string BaseSequence { set; get; }
+            public string FullSequence { set; get; }
+            public double RT { set; get; }
+            public int ScanNum { set; get; }
+            public string FileName { set; get; }
+            public ScanType ScanType { set; get; }
+            public Dictionary<int, string> ModDict { set; get; }
+
+            public int ParentScanNum { set; get; }
+
+            public double Score { set; get; }
+
+            public ByonicPsm()
+            {
+            }
+        }
     }
 }
