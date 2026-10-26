@@ -4,7 +4,10 @@ using Easy.Common.Extensions;
 using EngineLayer;
 using EngineLayer.DatabaseLoading;
 using EngineLayer.GlycoSearch;
+using Google.Protobuf.WellKnownTypes;
+using iText.IO.Image;
 using MassSpectrometry;
+using Microsoft.VisualBasic;
 using MzLibUtil;
 using Nett;
 using NUnit.Framework;
@@ -13,18 +16,25 @@ using Omics.Fragmentation;
 using Omics.Modifications;
 using Org.BouncyCastle.Asn1.Mozilla;
 using Proteomics;
+using Proteomics.AminoAcidPolymer;
 using Proteomics.ProteolyticDigestion;
 using Readers;
 using Readers.Generated;
+using StatisticalModels;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Windows.Markup;
 using TaskLayer;
+using Tensorboard;
 using ThermoFisher.CommonCore.BackgroundSubtraction;
+using TopDownProteomics.Biochemistry;
+using UsefulProteomicsDatabases;
 
 namespace Test
 {
@@ -1140,16 +1150,404 @@ namespace Test
         [Test]
         public static void CompareByonicPsm() 
         {
-            string MetaTsv = "H:\\PK_PhosGlycopeptide\\S-Sugar\\Supplier AR\\N_Search_284_FilterON_mod=2_throwhold=0.001\\Task1-GlycoSearchTask\\nglyco.psmtsv";
-            var Meta_IDs = SpectrumMatchTsvReader.ReadPsmTsv(MetaTsv, out var error2).OfType<GlycoPsmFromTsv>().ToList();
-            var Meta_S_Sugar = Meta_IDs.Where(p => p.GlycanComposition.Contains('Z')).ToList();
+            string MetaTsv_OFF = "H:\\PK_PhosGlycopeptide\\S-Sugar\\Supplier SA\\Run_OFF_284_mod=2_throwhold=0.001\\Task1-GlycoSearchTask\\nglyco.psmtsv";
+            var Meta_IDs_OFF = SpectrumMatchTsvReader.ReadPsmTsv(MetaTsv_OFF, out var error2).OfType<GlycoPsmFromTsv>().ToList();
+            var Meta_S_Sugar_OFF = Meta_IDs_OFF.Where(p => p.GlycanComposition.Contains('Z')).ToList();
 
-            string byonicTsv = "H:\\PK_PhosGlycopeptide\\S-Sugar\\Supplier AR\\GroundTruth_AR.tsv";
+            string MetaTsv_ON = "H:\\PK_PhosGlycopeptide\\S-Sugar\\Supplier SA\\Run_ON_284_mod=2_throwhold=0.001\\Task1-GlycoSearchTask\\nglyco.psmtsv";
+            var Meta_IDs_ON = SpectrumMatchTsvReader.ReadPsmTsv(MetaTsv_ON, out var error3).OfType<GlycoPsmFromTsv>().ToList();
+            var Meta_S_Sugar_ON = Meta_IDs_ON.Where(p => p.GlycanComposition.Contains('Z')).ToList();
+
+            string byonicTsv = "H:\\PK_PhosGlycopeptide\\S-Sugar\\Supplier SA\\All_IDs_SA.tsv";
             var byonicPsms = ByonicReader(byonicTsv);
 
-            int iiiii = 0;
+            int count_sameBase = 0;
+            int count_sameFull = 0;
+            int count_diffFull = 0;
+            int count_diffBase = 0;
+            List<ByonicPsm> recovered_OFF = new List<ByonicPsm>();
+            foreach (var meta_S in Meta_S_Sugar_OFF) 
+            {
+                int scanNum = meta_S.Ms2ScanNumber;
+                string baseSequence = meta_S.BaseSequence;
+                string fullSequence = meta_S.FullSequence;
+                string fileName = meta_S.FileName;
 
+                var byonicPsm = byonicPsms.FirstOrDefault(p => p.ScanNum == scanNum && p.FileName.Contains(fileName));
+                if (byonicPsm != null) 
+                {
+                    if (byonicPsm.BaseSequence == baseSequence) 
+                    {
+                        count_sameBase++;
+                        if(byonicPsm.FullSequence == fullSequence)
+                        {
+                            count_sameFull++;
+                        }
+                        else
+                        {
+                            count_diffFull++;
+                        }
+                    }
+                    else
+                    {
+                        count_diffBase++;
+                    }
+                    recovered_OFF.Add(byonicPsm);
+                }
+                
+            }
+            int count_recovered_OFF = recovered_OFF.Count;
+            int count_recovered_OFF_uncertain = recovered_OFF.Count(p => p.Validation == Validate.Uncertain);
+            int count_recovered_OFF_TP = recovered_OFF.Count(p => p.Validation == Validate.TruePositive);
+            int count_recovered_OFF_Null = recovered_OFF.Count(p => p.Label == Label.none);
+            int count_recovered_OFF_lowBY = recovered_OFF.Count(p => p.Label == Label.Low_b_and_y_ions);
+            int count_recovered_OFF_S_HexNAc_Hex = recovered_OFF.Count(p => p.Label == Label.S_HexNAc_Hex);
+            int count_recovered_OFF_S_HexNAc = recovered_OFF.Count(p => p.Label == Label.S_HexNAc);
+
+
+            var recovered_OFF_WithEvidence = recovered_OFF.Where(p => p.Label == Label.S_HexNAc).GroupBy(p=>p.FileName).ToDictionary(g => g.Key, g => g.Select(p => p.ScanNum).ToList());
+
+            List<ByonicPsm> recovered_ON = new List<ByonicPsm>();
+            foreach (var meta_S in Meta_S_Sugar_ON)
+            {
+                int scanNum = meta_S.Ms2ScanNumber;
+                string baseSequence = meta_S.BaseSequence;
+                string fullSequence = meta_S.FullSequence;
+                string fileName = meta_S.FileName;
+
+                var byonicPsm = byonicPsms.FirstOrDefault(p => p.ScanNum == scanNum && p.FileName.Contains(fileName));
+                if (byonicPsm != null)
+                {
+                    recovered_ON.Add(byonicPsm);
+                }
+
+            }
+            int count_recovered_ON = recovered_ON.Count;
+            int count_recovered_ON_uncertain = recovered_ON.Count(p => p.Validation == Validate.Uncertain);
+            int count_recovered_ON_TP = recovered_ON.Count(p => p.Validation == Validate.TruePositive);
+            int count_recovered_ON_Null = recovered_ON.Count(p => p.Label == Label.none);
+            int count_recovered_ON_lowBY = recovered_ON.Count(p => p.Label == Label.Low_b_and_y_ions);
+            int count_recovered_ON_S_HexNAc_Hex = recovered_ON.Count(p => p.Label == Label.S_HexNAc_Hex);
+            int count_recovered_ON_S_HexNAc = recovered_ON.Count(p => p.Label == Label.S_HexNAc);
+
+            var recovered_ON_WithEvidence = recovered_ON.Where(p => p.Label == Label.S_HexNAc).GroupBy(p=>p.FileName).ToDictionary(g => g.Key, g => g.Select(p => p.ScanNum).ToList());
+            var scan_none = recovered_ON.Where(p => p.Label == Label.none).GroupBy(p=>p.FileName).ToDictionary(g => g.Key, g => g.Select(p => p.ScanNum).ToList());
+            Dictionary<string, List<int>> scan_remove = new Dictionary<string, List<int>>();
+            foreach (var fileName in recovered_OFF_WithEvidence) 
+            {
+                var scans_OFF = fileName.Value;
+                if (recovered_ON_WithEvidence.ContainsKey(fileName.Key))
+                {
+                    var scans_ON = recovered_ON_WithEvidence[fileName.Key];
+                    var removeScans = scans_OFF.Except(scans_ON).ToList();
+                    scan_remove[fileName.Key] = removeScans;
+                }
+            }
+
+
+
+            var task = Toml.ReadFile<GlycoSearchTask>("H:\\PK_PhosGlycopeptide\\S-Sugar\\Supplier AR\\Run_OFF_284_mod=2_throwhold=0.001\\Task Settings\\Task1-GlycoSearchTaskconfig.toml", MetaMorpheusTask.tomlConfig);
+            CommonParameters commonParameters = task.CommonParameters;
+            GlycoSearchParameters glycoSearchParameters = task._glycoSearchParameters;
+            MyFileManager myFileManager = new MyFileManager(glycoSearchParameters.DisposeOfFileWhenDone);
+
+            string ScanFolder = "H:\\PK_PhosGlycopeptide\\S-Sugar\\Supplier SA";
+            Dictionary<string, List<Ms2ScanWithSpecificMass>> myMsDataFile = new Dictionary<string, List<Ms2ScanWithSpecificMass>>();
+            foreach (var path in Directory.GetFiles(ScanFolder, "*.raw"))
+            {
+                MsDataFile myDataFile = myFileManager.LoadFile(path, commonParameters);
+                var deconvolutedMs2Scans = MetaMorpheusTask.GetMs2Scans(myDataFile, path, commonParameters).OrderBy(p => p.OneBasedScanNumber).ToList();
+                string fileName = Path.GetFileName(path);
+                myMsDataFile[fileName] = deconvolutedMs2Scans;
+            }
+
+
+            double s_HexNAc = ((double)28404300 / 1E5).ToMass(1);
+            double Hex = ((double)13805550 / 1E5).ToMass(1);
+            var massDiffAcceptor = new SinglePpmAroundZeroSearchMode(10);
+
+            List<string> intensity_none = new List<string>();
+            intensity_none.Add("FileName, ScanNum, I_SHexNAc, I_Hex, Ratio_284");
+            foreach (var fileCase in scan_none) 
+            {
+                var fileName = fileCase.Key;
+                var scans = fileCase.Value;
+                foreach (var IDScan in scans)
+                {
+                    var scan = myMsDataFile[fileName].FirstOrDefault(p => p.OneBasedScanNumber == IDScan);
+                    double I_SHex = 0;
+                    double I_Hex = 0;
+                    var envelope_s_HexNAc = scan.GetClosestExperimentalIsotopicEnvelope(s_HexNAc);
+                    if (massDiffAcceptor.Accepts(envelope_s_HexNAc.MonoisotopicMass, s_HexNAc) >= 0)
+                    {
+                        I_SHex = envelope_s_HexNAc.TotalIntensity;
+                    }
+                    var envelope_Hex = scan.GetClosestExperimentalIsotopicEnvelope(Hex);
+                    if (massDiffAcceptor.Accepts(envelope_Hex.MonoisotopicMass, Hex) >= 0)
+                    {
+                        I_Hex = envelope_Hex.TotalIntensity;
+                    }
+                    double ratio_284 = I_SHex / I_Hex;
+                    intensity_none.Add(fileName + "," + IDScan + "," + I_SHex + "," + I_Hex + "," + ratio_284);
+                }
+            }
+            string none_output = "H:\\PK_PhosGlycopeptide\\S-Sugar\\Supplier SA\\None_Intensity.txt";
+            File.WriteAllLines(none_output, intensity_none);
+
+            List<string> intensity_remove = new List<string>();
+            intensity_remove.Add("FileName, ScanNum, I_SHexNAc, I_Hex, Ratio_284");
+            foreach (var fileCase in scan_remove)
+            {
+                var fileName = fileCase.Key;
+                var scans = fileCase.Value;
+                foreach (var IDScan in scans)
+                {
+                    var scan = myMsDataFile[fileName].FirstOrDefault(p => p.OneBasedScanNumber == IDScan);
+                    double I_SHex = 0;
+                    double I_Hex = 0;
+                    var envelope_s_HexNAc = scan.GetClosestExperimentalIsotopicEnvelope(s_HexNAc);
+                    if (massDiffAcceptor.Accepts(envelope_s_HexNAc.MonoisotopicMass, s_HexNAc) >= 0)
+                    {
+                        I_SHex = envelope_s_HexNAc.TotalIntensity;
+                    }
+                    var envelope_Hex = scan.GetClosestExperimentalIsotopicEnvelope(Hex);
+                    if (massDiffAcceptor.Accepts(envelope_Hex.MonoisotopicMass, Hex) >= 0)
+                    {
+                        I_Hex = envelope_Hex.TotalIntensity;
+                    }
+                    double ratio_284 = I_SHex / I_Hex;
+                    intensity_remove.Add(fileName + "," + IDScan + "," + I_SHex + "," + I_Hex + "," + ratio_284);
+                }
+            }
+            string remove_output = "H:\\PK_PhosGlycopeptide\\S-Sugar\\Supplier AR\\Remove_Intensity.txt";
+            File.WriteAllLines(remove_output, intensity_remove);
+            int iiiii = 0;
         }
+
+        [Test]
+        public static void SitePloting() 
+        {
+            string supplier = "SA";
+            string file = $"H:\\PK_PhosGlycopeptide\\S-Sugar\\Supplier {supplier}\\Site_Analysis_{supplier}.txt";
+            List<SiteInfo> case_withTail = new List<SiteInfo>();
+            foreach (var line in File.ReadAllLines(file)) 
+            {
+                if (line.Contains("Condition")) continue;
+                SiteInfo info = new SiteInfo();
+                var parts = line.Split("\t");
+                info.Condition = parts[0];
+                info.BaseSequence = parts[1];
+                info.Site = parts[2];
+                info.Glycan = parts[3];
+                case_withTail.Add(info);
+            }
+
+            List<string> tailPeice = new List<string> { "LAGKPTHVNVS", "LAGKPTHVNVSVV", "LAGKPTHVNVSVVM", "LAGKPTHVNVSVVMAEVDGT", "LAGKPTHVNVSVVMAEVDGTC", "PTHVNVSVVMAEVDGTC" };
+
+
+            var case_withoutTail = case_withTail.Where(p => !tailPeice.Contains(p.BaseSequence)).ToList();
+
+            var table = case_withoutTail.GroupBy(r => (r.Site));
+            var conds = new[] { "Byonic_TP", "Byonic_TP284", "MM OFF", "MM ON" };
+            var SiteDict = new Dictionary<string, Dictionary<string, Tuple<int, int, int, int>>>();
+            foreach (var row in table) 
+            {
+                var glycanList = row.Select(p => p.Glycan).Distinct().ToList();
+                var Dict = new Dictionary<string, Tuple<int, int, int, int>>();
+                foreach (var glycan in glycanList) 
+                {
+                    var Bynoic_TP = row.Any(p => p.Condition == conds[0] && p.Glycan == glycan) ? 1 : 0;
+                    var Bynoic_TP284 = row.Any(p => p.Condition == conds[1] && p.Glycan == glycan) ? 1 : 0;
+                    var MM_OFF = row.Any(p => p.Condition == conds[2] && p.Glycan == glycan) ? 1 : 0;
+                    var MM_ON = row.Any(p => p.Condition == conds[3] && p.Glycan == glycan) ? 1 : 0;
+                    Dict[glycan] = new Tuple<int, int, int, int>(Bynoic_TP, Bynoic_TP284, MM_OFF, MM_ON);
+                }
+                SiteDict[row.Key] = Dict;
+            }
+            int iiiii = 0;
+            string output = $"H:\\PK_PhosGlycopeptide\\S-Sugar\\Supplier {supplier}\\Site_Table_{supplier}.txt";
+            List<string> outputLines = new List<string>();
+            outputLines.Add("Site\tGlycan\tByonic_TP\tByonic_TP284\tMM_OFF\tMM_ON");
+
+            foreach (var siteEntry in SiteDict)
+            {
+                string site = siteEntry.Key;
+                var glycanDict = siteEntry.Value;
+
+                foreach (var glycanEntry in glycanDict)
+                {
+                    string glycan = glycanEntry.Key;
+                    Tuple<int, int, int, int> values = glycanEntry.Value;
+
+                    outputLines.Add($"{site}\t{glycan}\t{values.Item1}\t{values.Item2}\t{values.Item3}\t{values.Item4}");
+                }
+            }
+
+            File.WriteAllLines(output, outputLines);
+        }
+
+        public class SiteInfo
+        {
+            public string Condition { set; get; }
+            public string BaseSequence { set; get; }
+            public string Site { set; get; }
+            public string Glycan { set; get; }
+            public SiteInfo() { }
+        }
+
+        [Test]
+        public static void SiteAnalysis() 
+        {
+            string supplier = "SA";
+            string MetaTsv_OFF = $"H:\\PK_PhosGlycopeptide\\S-Sugar\\Supplier {supplier}\\Run_OFF_284_mod=2_throwhold=0.001\\Task1-GlycoSearchTask\\nglyco.psmtsv";
+            var Meta_IDs_OFF = SpectrumMatchTsvReader.ReadPsmTsv(MetaTsv_OFF, out var error2).OfType<GlycoPsmFromTsv>().ToList();
+            var Meta_S_Sugar_OFF = Meta_IDs_OFF.Where(p => p.GlycanComposition.Contains('Z'))
+                .Where(p=>p.DecoyContamTarget == "T" && p.QValue <= 0.01)
+                .ToList();
+
+            string MetaTsv_ON = $"H:\\PK_PhosGlycopeptide\\S-Sugar\\Supplier {supplier}\\Run_ON_284_mod=2_throwhold=0.001\\Task1-GlycoSearchTask\\nglyco.psmtsv";
+            var Meta_IDs_ON = SpectrumMatchTsvReader.ReadPsmTsv(MetaTsv_ON, out var error3).OfType<GlycoPsmFromTsv>().ToList();
+            var Meta_S_Sugar_ON = Meta_IDs_ON.Where(p => p.GlycanComposition.Contains('Z'))
+                .Where(p => p.DecoyContamTarget == "T" && p.QValue <= 0.01)
+                .ToList().ToList();
+
+            string byonicTsv = $"H:\\PK_PhosGlycopeptide\\S-Sugar\\Supplier {supplier}\\All_IDs_{supplier}.tsv";
+            var byonicPsms_validated = ByonicReader(byonicTsv)
+                .Where(p=>p.Validation == Validate.TruePositive)
+                .ToList();
+            var byonicPsms_WithEvidence = ByonicReader(byonicTsv)
+                .Where(p => p.Validation == Validate.TruePositive)
+                .Where(p => p.Label == Label.S_HexNAc)
+                .ToList();
+
+            string proteinDb = $"H:\\PK_PhosGlycopeptide\\S-Sugar\\Proteins Supplier {supplier}.fasta";
+            List<Protein> proteins = ProteinDbLoader.LoadProteinFasta(
+                proteinDb,
+                generateTargets: true,
+                decoyType: DecoyType.None,
+                isContaminant: false,
+                out List<string> dbErrors);
+
+            var siteDict_Byonic_validated = Glycan_Site(byonicPsms_validated, proteins);
+            var siteDict_Byonic_withEvidence = Glycan_Site(byonicPsms_WithEvidence, proteins);
+            var siteDict_OFF = Glycan_Site(Meta_S_Sugar_OFF, proteins);
+            var siteDict_ON = Glycan_Site(Meta_S_Sugar_ON, proteins);
+
+            string output = $"H:\\PK_PhosGlycopeptide\\S-Sugar\\Supplier {supplier}\\Site_Analysis_{supplier}.txt";
+            var allLines = new List<string>();
+            allLines.Add("Condition\tBase Sequence\tSite_info\tGlycan");
+            void AppendSection(string condition, List<string> infos)
+            {
+                foreach (var line in infos) 
+                {
+                    allLines.Add(condition + "\t" + line);
+                }
+            }
+
+            AppendSection("Byonic_TP", siteDict_Byonic_validated);
+            AppendSection("Byonic_TP284", siteDict_Byonic_withEvidence);
+            AppendSection("MM OFF", siteDict_OFF);
+            AppendSection("MM ON", siteDict_ON);
+
+            File.WriteAllLines(output, allLines);
+        }
+        private static List<int> FindNSequons(string baseSequence)
+        {
+            var sites = new List<int>();
+            if (string.IsNullOrEmpty(baseSequence))
+            {
+                return sites;
+            }
+
+            for (int i = 0; i <= baseSequence.Length - 3; i++)
+            {
+                if (baseSequence[i] == 'N'
+                    && baseSequence[i + 1] != 'P'
+                    && (baseSequence[i + 2] == 'S' || baseSequence[i + 2] == 'T'))
+                {
+                    sites.Add(i + 1); // 1-based site of the N
+                }
+            }
+
+            return sites;
+        }
+
+        private static List<string> Glycan_Site(List<GlycoPsmFromTsv> gsms, List<Protein> proteins) 
+        {
+            var group_base = gsms.GroupBy(p => p.BaseSequence);
+
+            List<string> glycanSites = new List<string>();
+            foreach (var group in group_base)
+            {
+                string baseSequence = group.Key;
+                var sites = FindNSequons(baseSequence);
+                if (sites.Count != 1)
+                {
+                    int iiiii = 0;
+                }
+
+                string site_info = "";
+
+                foreach (var protein in proteins)
+                {
+                    int peptideStartIndex = protein.BaseSequence.IndexOf(baseSequence, StringComparison.Ordinal);
+                    if (peptideStartIndex == -1) continue;
+
+                    int N_glycoSite = peptideStartIndex + sites.First(); // 1-based site of the N in the protein sequence
+                    if (site_info != "")
+                    {
+                        site_info += "/";
+                    }
+                    site_info += protein.Accession + ":" + "N" + N_glycoSite;
+                }
+
+                foreach (var id in group)
+                {
+                    glycanSites.Add(baseSequence + "\t" + site_info + "\t" + id.GlycanComposition);
+                }
+                
+            }
+            return glycanSites.Distinct().ToList();
+        }
+
+        private static List<string> Glycan_Site(List<ByonicPsm> gsms, List<Protein> proteins)
+        {
+            var group_base = gsms.GroupBy(p => p.BaseSequence);
+
+            List<string> glycanSites = new List<string>();
+            foreach (var group in group_base)
+            {
+                string baseSequence = group.Key;
+                var sites = FindNSequons(baseSequence);
+                if (sites.Count != 1)
+                {
+                    int iiiii = 0;
+                }
+
+                string site_info = "";
+
+                foreach (var protein in proteins)
+                {
+                    int peptideStartIndex = protein.BaseSequence.IndexOf(baseSequence, StringComparison.Ordinal);
+                    if (peptideStartIndex == -1) continue;
+
+                    int N_glycoSite = peptideStartIndex + sites.First(); // 1-based site of the N in the protein sequence
+                    if (site_info != "")
+                    {
+                        site_info += "/";
+                    }
+                    site_info += protein.Accession + ":" + "N" + N_glycoSite;
+                }
+
+                foreach (var id in group)
+                {
+                    glycanSites.Add(baseSequence + "\t" + site_info + "\t" + id.Glycan);
+                }
+
+            }
+            return glycanSites.Distinct().ToList();
+        }
+
         private static List<ByonicPsm> ByonicReader(string filePath)
         {
             List<ByonicPsm> psms = new List<ByonicPsm>();
@@ -1165,12 +1563,51 @@ namespace Test
                     continue;
                 }
                 byonicPsm.ScanNum = int.Parse(scanNum.First());
-                string fileName = FileNameList.First().Replace("_SulfoNoOxon_AR", "");
-                byonicPsm.FileName = fileName;
+                if(FileNameList.First().Contains("_SulfoNoOxon_AR"))
+                {
+                    string fileName = FileNameList.First().Replace("_SulfoNoOxon_AR", "");
+                    byonicPsm.FileName = fileName;
+                }
+                else if (FileNameList.First().Contains("_SulfoNoOxon_SA"))
+                {
+                    string fileName = FileNameList.First().Replace("_SulfoNoOxon_SA", "");
+                    byonicPsm.FileName = fileName;
+                }
+                else
+                {
+                    byonicPsm.FileName = FileNameList.First();
+                }
+
+                if (parts[7].Contains("True-positive")) 
+                {
+                    byonicPsm.Validation = Validate.TruePositive;
+                }
+                else 
+                {
+                    byonicPsm.Validation = Validate.Uncertain;
+                }
 
 
+                if (parts[8].Contains("SulfoHexNAc evidence"))
+                {
+                    byonicPsm.Label = Label.S_HexNAc;
+                }
+                else if (parts[8].Contains("SulfoHexNAcHex evidence"))
+                {
+                    byonicPsm.Label = Label.S_HexNAc_Hex;
+                }
+                else if (parts[8].Contains("Low b and y ions"))
+                {
+                    byonicPsm.Label = Label.Low_b_and_y_ions;
+                }
+                else if (parts[8] == "")
+                {
+                    byonicPsm.Label = Label.none;
+                }
 
                 string baseSequence = GetBase(parts[5]);
+                byonicPsm.BaseSequence = baseSequence;
+                byonicPsm.Glycan = GetGlycanLetter(parts[6]);
                 Dictionary<int, string> variableModDict = GetModList(parts[11], parts[4], parts[6]);
                 Dictionary<int, string> fixedModDict = GetFixedModDict(parts[15]);
                 Dictionary<int, string> modDict = GetModDict(variableModDict,fixedModDict);
@@ -1181,6 +1618,14 @@ namespace Test
                 psms.Add(byonicPsm);
             }
             return psms;
+        }
+
+        private static string GetGlycanLetter(string glycanComposition) 
+        {
+            var kind = GlycanDatabase.String2Kind(glycanComposition);
+            string glycanLetter = Glycan.GetKindString(kind);
+            glycanLetter = ReplaceNAndSWithZ(glycanLetter);
+            return glycanLetter;
         }
 
         private static string GetBase(string fullText)
@@ -1205,6 +1650,7 @@ namespace Test
                 peptidePart = parts[0];
             }
             peptidePart = peptidePart.Replace("n", "N");
+            peptidePart = peptidePart.Replace("m", "M");
             return peptidePart;
         }
         private static Dictionary<int, string> GetModList(string modText, string siteText,string glycanComposition)
@@ -1215,6 +1661,7 @@ namespace Test
             var siteList = siteText.Split(',').ToList().Select(p => int.Parse(p.Replace("\"",""))).ToList();
             var kind = GlycanDatabase.String2Kind(glycanComposition);
             string glycanLetter = Glycan.GetKindString(kind);
+            glycanLetter = ReplaceNAndSWithZ(glycanLetter);
 
             for (int i = 0; i < modList.Count; i++)
             {
@@ -1222,16 +1669,16 @@ namespace Test
 
                 switch (modName) 
                 {
-                    case "NGlycan":
+                    case var _ when modName.Contains("NGlycan"):
                         modName = "N-linked glycosylation:" + glycanLetter + " on Nx";
                         break;
-                    case "Oxidation":
+                    case var _ when modName.Contains("Oxidation"):
                         modName = "Common Variable:Oxidation on ";
                         break;
-                    case "Dioxidation":
+                    case var _ when modName.Contains("Dioxidation"):
                         modName = "Less Common:Dioxidation on ";
                         break;
-                    case "Deamidation":
+                    case var _ when modName.Contains("Deamidation"):
                         modName = "Common Artifact:Deamidation on ";
                         break;
                 }
@@ -1285,6 +1732,8 @@ namespace Test
                     string residue = baseSequence[i].ToString();
                     if (modName.Contains("N-linked")) 
                     {
+                        if (i + 2 > baseSequence.Length - 1) continue;
+                       
                         residue = baseSequence[i+2].ToString().ToLower();
                     }
 
@@ -1297,6 +1746,72 @@ namespace Test
             }
             return fullSequence.ToString();
         }
+        /// <summary>
+        /// Rewrites a glycan "kind string" (e.g. "H3N4F1S1") by consuming one N (HexNAc) and
+        /// one S (Sulfo) and replacing them with a single Z, e.g. "H3N4F1S1" -> "H3N3F1Z1".
+        /// If either N or S is missing/zero, the string is returned unchanged.
+        /// </summary>
+        private static string ReplaceNAndSWithZ(string glycanLetter)
+        {
+            if (string.IsNullOrEmpty(glycanLetter))
+            {
+                return glycanLetter;
+            }
+
+            // Each entry is a single letter followed by its count, e.g. "H3", "N4", "F1", "S1"
+            var matches = Regex.Matches(glycanLetter, @"([A-Z])(\d+)");
+
+            var orderedLetters = new List<string>();
+            var counts = new Dictionary<string, int>();
+            foreach (Match match in matches)
+            {
+                string letter = match.Groups[1].Value;
+                int count = int.Parse(match.Groups[2].Value);
+                orderedLetters.Add(letter);
+                counts[letter] = count;
+            }
+
+            bool hasN = counts.TryGetValue("N", out int nCount) && nCount > 0;
+            bool hasS = counts.TryGetValue("S", out int sCount) && sCount > 0;
+
+            if (!hasN || !hasS)
+            {
+                return glycanLetter; // nothing to replace
+            }
+
+            counts["N"] = nCount - 1;
+            counts["S"] = sCount - 1;
+            counts["Z"] = counts.TryGetValue("Z", out int zCount) ? zCount + 1 : 1;
+            if (!orderedLetters.Contains("Z"))
+            {
+                orderedLetters.Add("Z");
+            }
+
+            var builder = new StringBuilder();
+            foreach (var letter in orderedLetters)
+            {
+                if (counts[letter] > 0)
+                {
+                    builder.Append(letter).Append(counts[letter]);
+                }
+            }
+
+            return builder.ToString();
+        }
+
+        public enum Validate
+        {
+            Uncertain,
+            TruePositive
+        }
+
+        public enum Label
+        {
+            none,
+            S_HexNAc,
+            S_HexNAc_Hex,
+            Low_b_and_y_ions
+        }
 
         public class ByonicPsm
         {
@@ -1307,14 +1822,21 @@ namespace Test
             public string FileName { set; get; }
             public ScanType ScanType { set; get; }
             public Dictionary<int, string> ModDict { set; get; }
+            public Label Label { set; get; }
+            public Validate Validation { set; get; }
+            public string Glycan { set; get; }
+            public string ProteinName { set; get; }
+            public string ProteinAccession { set; get; }
+
 
             public int ParentScanNum { set; get; }
 
             public double Score { set; get; }
-
+            
             public ByonicPsm()
             {
             }
         }
+
     }
 }
