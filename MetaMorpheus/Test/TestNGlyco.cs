@@ -1012,7 +1012,8 @@ namespace Test
         [Test]
         public static void PP()
         {
-            string path_YES = "H:\\PK_PhosGlycopeptide\\S-Sugar\\Supplier AR\\N_Search_284+466_FilterOFF_mod=2\\Task1-GlycoSearchTask\\nglyco.psmtsv";
+            string supplier = "AR";
+            string path_YES = $"H:\\PK_PhosGlycopeptide\\S-Sugar\\Supplier {supplier}\\Run_OFF_284_mod=2_throwhold=0.001\\Task1-GlycoSearchTask\\nglyco.psmtsv";
             var gms_YES = SpectrumMatchTsvReader.ReadPsmTsv(path_YES, out var error2).OfType<GlycoPsmFromTsv>().ToList();
             var phosphatedScansByFile = gms_YES
                 .Where(g => g.GlycanComposition.Contains('Z'))
@@ -1020,12 +1021,12 @@ namespace Test
                 .ToDictionary(g => g.Key, g => g.Select(p => p.Ms2ScanNumber).ToList());
             int count = 0;
 
-            var task = Toml.ReadFile<GlycoSearchTask>("H:\\PK_PhosGlycopeptide\\S-Sugar\\Supplier AR\\N_Search_284+466_FilterOFF_mod=2\\Task Settings\\Task1-GlycoSearchTaskconfig.toml", MetaMorpheusTask.tomlConfig);
+            var task = Toml.ReadFile<GlycoSearchTask>($"H:\\PK_PhosGlycopeptide\\S-Sugar\\Supplier {supplier}\\Run_OFF_284_mod=2_throwhold=0.001\\Task Settings\\Task1-GlycoSearchTaskconfig.toml", MetaMorpheusTask.tomlConfig);
             CommonParameters commonParameters = task.CommonParameters;
             GlycoSearchParameters glycoSearchParameters = task._glycoSearchParameters;
             MyFileManager myFileManager = new MyFileManager(glycoSearchParameters.DisposeOfFileWhenDone);
 
-            string ScanFolder = "H:\\PK_PhosGlycopeptide\\S-Sugar\\Supplier AR";
+            string ScanFolder = $"H:\\PK_PhosGlycopeptide\\S-Sugar\\Supplier {supplier}";
             Dictionary<string, List<Ms2ScanWithSpecificMass>> myMsDataFile = new Dictionary<string, List<Ms2ScanWithSpecificMass>>();
             foreach (var path in Directory.GetFiles(ScanFolder, "*.raw"))
             {
@@ -1084,6 +1085,7 @@ namespace Test
                 ration_284ByFile[fileName] = ration_284;
                 ration_466ByFile[fileName] = ration_466;
             }
+            List<string> output = new List<string>();
             foreach (var fileName in phosphatedScansByFile.Keys)
             {
                 int count_High_284 = ration_284ByFile[fileName].Count(p => p > 0.1);
@@ -1102,8 +1104,9 @@ namespace Test
                 int iiiii = 0;
                 int count_zero_284 = ration_284ByFile[fileName].Count(p => p == 0);
                 int count_zero_466 = ration_466ByFile[fileName].Count(p => p == 0);
-                int sttyyt = 0;
+                output.Add($"{fileName}\t{count_High_284}\t{count_Medium_284}\t{count_Low_284}\t{count_VeryLow_284}\t{count_dispear_284}\t{count_zero_284}\t{count_High_466}\t{count_Medium_466}\t{count_Low_466}\t{count_VeryLow_466}\t{count_dispear_466}\t{count_zero_466}");
             }
+            File.WriteAllLines($"H:\\PK_PhosGlycopeptide\\S-Sugar\\Supplier {supplier}\\instensity.txt", output);
         }
 
         [Test]
